@@ -10,15 +10,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.example.studenttasks.ui.theme.StudentTasksTheme
 
@@ -37,27 +46,34 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TaskRow(
-    title: String,
-    isCompleted: Boolean
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(
-            checked = isCompleted,
-            onCheckedChange = null
-        )
-        Text(
-            text = title,
-            modifier = Modifier.padding(start = 8.dp)
+fun StudentTasksApp(modifier: Modifier = Modifier) {
+    var tasks by remember {
+        mutableStateOf(
+            listOf(
+                Task(
+                    id = 1,
+                    title = "Prepare Kotlin exercise",
+                    priority = Priority.HIGH
+                ),
+                Task(
+                    id = 2,
+                    title = "Read Android documentation",
+                    priority = Priority.MEDIUM
+                ),
+                Task(
+                    id = 3,
+                    title = "Run the app",
+                    isCompleted = true,
+                    priority = Priority.LOW
+                )
+            )
         )
     }
-}
 
-@Composable
-fun StudentTasksApp(modifier: Modifier = Modifier) {
+    var newTaskTitle by rememberSaveable {
+        mutableStateOf("")
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -66,14 +82,130 @@ fun StudentTasksApp(modifier: Modifier = Modifier) {
     ) {
         Text(
             text = "Student Tasks",
-            style = MaterialTheme.typography.headlineMedium
+            style = MaterialTheme.typography.headlineLarge
         )
-        Text("3 tasks")
-        Button(onClick = { }) {
+
+        val completedCount = tasks.count { it.isCompleted }
+        Text(
+            text = "$completedCount of ${tasks.size} completed"
+        )
+
+        OutlinedTextField(
+            value = newTaskTitle,
+            onValueChange = { newValue ->
+                newTaskTitle = newValue
+            },
+            label = {
+                Text("New task")
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = {
+                val newTask = Task(
+                    id = (tasks.maxOfOrNull { it.id } ?: 0) + 1,
+                    title = newTaskTitle.trim()
+                )
+                tasks = tasks + newTask
+                newTaskTitle = ""
+            },
+            enabled = newTaskTitle.isNotBlank()
+        ) {
             Text("Add Task")
         }
-        TaskRow(title = "Prepare Kotlin exercise", isCompleted = false)
-        TaskRow(title = "Install Android Studio", isCompleted = true)
+
+        if (tasks.isEmpty()) {
+            Text("No tasks yet.")
+        } else {
+            TaskList(
+                tasks = tasks,
+                onCompletedChange = { changedTask, isCompleted ->
+                    tasks = tasks.map { task ->
+                        if (task.id == changedTask.id) {
+                            task.copy(isCompleted = isCompleted)
+                        } else {
+                            task
+                        }
+                    }
+                },
+                onDelete = { taskToDelete ->
+                    tasks = tasks.filter { task ->
+                        task.id != taskToDelete.id
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 
+@Composable
+fun TaskList(
+    tasks: List<Task>,
+    onCompletedChange: (Task, Boolean) -> Unit,
+    onDelete: (Task) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(
+            items = tasks,
+            key = { task -> task.id }
+        ) { task ->
+            TaskRow(
+                task = task,
+                onCompletedChange = { isCompleted ->
+                    onCompletedChange(task, isCompleted)
+                },
+                onDelete = {
+                    onDelete(task)
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun TaskRow(
+    task: Task,
+    onCompletedChange: (Boolean) -> Unit,
+    onDelete: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = task.isCompleted,
+            onCheckedChange = onCompletedChange
+        )
+        Column(
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .weight(1f)
+        ) {
+            Text(
+                text = task.title,
+                textDecoration = if (task.isCompleted) {
+                    TextDecoration.LineThrough
+                } else {
+                    null
+                }
+            )
+            Text(
+                text = task.priority.name,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        OutlinedButton(
+            onClick = onDelete
+        ) {
+            Text("Delete")
+        }
+    }
+}
